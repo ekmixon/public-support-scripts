@@ -121,9 +121,7 @@ class ReroleUsersTest(unittest.TestCase):
 
 if __name__ == '__main__':
     global api_key
-    api_key = ''
-    if len(sys.argv) > 1:
-        api_key = sys.argv.pop()
+    api_key = sys.argv.pop() if len(sys.argv) > 1 else ''
     print("WARNING: functional testing, if it fails, will not automatically "
             "reset fixtures.")
     unittest.main()

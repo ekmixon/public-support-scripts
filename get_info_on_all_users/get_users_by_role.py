@@ -21,7 +21,7 @@ def get_users(role, session):
   role_types_count[role] = 0
   if args.logging: 
     sys.stdout.write("Listing %ss:\n"%role)
-  members = [] 
+  members = []
   for user in session.iter_all('users'): 
     if user['role'] == role:
       role_types_count[role] += 1
@@ -31,31 +31,32 @@ def get_users(role, session):
       members.append(user['name'])
   total_for_role = str(len(members))
   if args.logging:   
-    sys.stdout.write("Total number of "+role+"s: "+total_for_role)
+    sys.stdout.write(f"Total number of {role}s: {total_for_role}")
     sys.stdout.write("\n-----\n")
 
 
 def get_managers(team_id, team_name, session):
-  for member in session.iter_all('teams/%s/members'%team_id):
+  for member in session.iter_all(f'teams/{team_id}/members'):
     if member['role'] == 'manager':
       role_types_count['team managers'] += 1
       if args.logging: 
         sys.stdout.write(member['user']['summary'] + "\n")
-      user_id = member['user']['id']  
-      user = session.rget('/users/%s'%user_id)  
-      write_rows(user['name'], "Team Manager, " + team_name, user['email'])
+      user_id = member['user']['id']
+      user = session.rget(f'/users/{user_id}')
+      write_rows(user['name'], f"Team Manager, {team_name}", user['email'])
       team_managers.append(member['user']['summary'])
     
 
 def get_teams(session):
 # first need to get all teams before we can look up team managers  
-  role_types_count['team managers'] = 0 
+  role_types_count['team managers'] = 0
   for team in session.iter_all('teams'):
     team_name = (team['summary'])
     get_managers(team['id'], team_name, session)
-  total_team_managers = str(len(team_managers))
   if args.logging: 
-    sys.stdout.write("Total number of team managers: "+total_team_managers+"\n")
+    total_team_managers = str(len(team_managers))
+    sys.stdout.write(f"Total number of team managers: {total_team_managers}" +
+                     "\n")
     sys.stdout.write("\n-----\n")
     
 
@@ -70,10 +71,10 @@ if __name__ == '__main__':
   session = pdpyras.APISession(args.api_key)
   roles = (args.roles).split(',')
   if args.filename[-4:] != '.csv':
-    filename = args.filename + '.csv'
+    filename = f'{args.filename}.csv'
   else:
     filename = args.filename
-  write_rows('Name','Role', 'Email')  
+  write_rows('Name','Role', 'Email')
   for role in roles:
     if role == "team_managers":
       get_teams(session)
@@ -83,9 +84,9 @@ if __name__ == '__main__':
       sys.stdout.write("\n"+role+" is not an acceptable value. Please only use the following values with the -r flag:\nteam_managers\n")
       for api_value in allowed_roles:
         sys.stdout.write(api_value+"\n")
-      sys.stdout.write("\n")  
+      sys.stdout.write("\n")
   for role_type, total in role_types_count.items():
-    sys.stdout.write(role_type+": "+str(total)+"\n")
+    sys.stdout.write(f"{role_type}: {str(total)}" + "\n")
      
       
 # This script will take a comma separated list of roles as a command line argument and fetches all the users in an account that match one of 

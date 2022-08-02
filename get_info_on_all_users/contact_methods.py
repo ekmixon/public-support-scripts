@@ -18,15 +18,19 @@ def get_users(session):
         sys.stdout.write("-----\n")
 
 def get_contact_methods(user_id, session):
-    for contact_method in session.iter_all('users/%s/contact_methods'%user_id):
+    for contact_method in session.iter_all(f'users/{user_id}/contact_methods'):
         if 'phone' in contact_method['type']:
             sys.stdout.write("Phone:  ")
-            sys.stdout.write('%s %s'%(contact_method['country_code'],
-                contact_method['address']))
+            sys.stdout.write(
+                f"{contact_method['country_code']} {contact_method['address']}"
+            )
+
         elif 'sms' in contact_method['type']:
             sys.stdout.write("SMS:  ")
-            sys.stdout.write('%s %s'%(contact_method['country_code'],
-                contact_method['address']))
+            sys.stdout.write(
+                f"{contact_method['country_code']} {contact_method['address']}"
+            )
+
         elif 'email' in contact_method['type']:
             sys.stdout.write("Email:  ")
             sys.stdout.write(contact_method['address'])

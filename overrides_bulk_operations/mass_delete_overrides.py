@@ -21,15 +21,13 @@ def main():
     for row in csv.reader(args.csv_file):
         schedule_id, override_id = row[:2]
         try:
-            session.rdelete('/schedules/%s/overrides/%s'%(
-                schedule_id, override_id
-            ))
-            print("Deleted override "+override_id)
+            session.rdelete(f'/schedules/{schedule_id}/overrides/{override_id}')
+            print(f"Deleted override {override_id}")
         except pdpyras.PDClientError as e:
             error = 'Network error'
             if e.response is not None:
                 error = e.response.text
-            print("Could not delete override %s; %s"%(override_id, error))
+            print(f"Could not delete override {override_id}; {error}")
             continue
 
 if __name__ == '__main__':

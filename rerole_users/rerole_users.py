@@ -92,14 +92,14 @@ def decide_new_roles(args, user, per_user_base_role, per_user_team_role,
     # High granualrity team roles:
     per_team_roles = per_user_per_team_roles
     decided_per_team_roles = {}
-    if per_user_per_team_roles is None:
+    if per_team_roles is None:
         per_team_roles = {}
     for (t, r) in per_team_roles.items():
         if not t or not t.strip():
             # Blank team column
             continue
         per_team_role = r
-        if r is None:
+        if per_team_role is None:
             # Default to the globally-set team role, determined by the logic
             # in the above code:
             per_team_role = team_role
@@ -151,7 +151,7 @@ def find_team(name):
         if team is None:
             team = session.find('teams', name)
             if team is None:
-                print("WARNING: team not found: "+name)
+                print(f"WARNING: team not found: {name}")
                 teams[name] = False
             else:
                 teams[name] = team
@@ -174,7 +174,7 @@ def find_user(email):
             return user
         user = session.find('users', email, attribute='email', params=u_params)
         if user is None:
-            print("WARNING: user not found: "+email)
+            print(f"WARNING: user not found: {email}")
             users[email] = False
         else:
             users[email] = user
@@ -185,7 +185,7 @@ def find_user(email):
 def get_team(team_id):
     global session, teams
     if team_id not in teams:
-        teams[team_id] = session.rget('/teams/'+team_id)
+        teams[team_id] = session.rget(f'/teams/{team_id}')
     return teams[team_id]
 
 def get_all_rerole_operations(args):
@@ -245,9 +245,10 @@ def get_rerole_stats(rerole_ops):
         for (i, roletype) in enumerate(('base', 'team')):
             if to[i] is not None:
                 if user['email'] in users[roletype]:
-                    print("WARNING: %s role for %s already defined as %s"%(
-                        roletype, user['email'], users[roletype][user['email']]
-                    ))
+                    print(
+                        f"WARNING: {roletype} role for {user['email']} already defined as {users[roletype][user['email']]}"
+                    )
+
                     continue
                 stats[roletype][to[i]] = stats[roletype].get(to[i], 0)+1
                 users[roletype][user['email']] = to[i]
@@ -263,11 +264,11 @@ def get_team_members(team_id):
     """
     global session, team_members
     if team_id not in team_members:
-        r = session.get('teams/%s/members'%team_id)
+        r = session.get(f'teams/{team_id}/members')
         if r.ok:
             team_members.setdefault(team_id, {})
             for member in r.json()['members']:
-                if not 'user' in member:
+                if 'user' not in member:
                     # Ignore if not a user
                     continue
                 team_members[team_id][member['user']['id']] = member['role']
@@ -348,7 +349,7 @@ def get_users(args):
             # Look up user
             user = find_user(user_email.strip())
             if not user:
-                print("Could not find user by name or email: " + user_email)
+                print(f"Could not find user by name or email: {user_email}")
                 continue
             yield [user, role, team_role, {}]
     else: # Per-user-per-team roles
@@ -363,7 +364,7 @@ def get_users(args):
                 team_role = valid_role(team_role, team=True)
                 if not team_role:
                     continue
-                print("%s: %s on %s"%(email, team_role, team['summary']))
+                print(f"{email}: {team_role} on {team['summary']}")
                 team_roles.setdefault(email, {})
                 team_roles[email][team_name] = team_role
         for email in team_roles:
@@ -380,7 +381,7 @@ def get_valid_roles():
         valid_roles['team'].extend(['observer', 'manager', 'responder'])
 
 def handle_exception(e):
-    msg = "API Error: %s ; "%e
+    msg = f"API Error: {e} ; "
     response = e.response
     if response is not None:
         msg += "HTTP %d for %s %s: %s"%(response.status_code,
@@ -390,7 +391,7 @@ def handle_exception(e):
 
 def print_rerole_stats(rerole_stats):
     for roletype in rerole_stats:
-        print("Users whose %s role will be set:"%roletype)
+        print(f"Users whose {roletype} role will be set:")
         for role in rerole_stats[roletype]:
             print("\tTo %s: %d"%(role, rerole_stats[roletype][role]))
 
@@ -398,16 +399,16 @@ def rerole_users(args):
     # Prepare, present user with summary and prompt for Y/N to proceed
     print("Collecting list of user rerole operations...")
     rerole_ops = list(get_all_rerole_operations(args))
-    n_tot = len(set([o[0]['email'] for o in rerole_ops]))
+    n_tot = len({o[0]['email'] for o in rerole_ops})
     rerole_stats = get_rerole_stats(rerole_ops)
     if rerole_stats is not None:
         print_rerole_stats(rerole_stats)
 
     # Set backup files
     rf = csv.writer(args.rollback_file)
-    print("Backing up base roles to {}".format(args.rollback_file.name))
+    print(f"Backing up base roles to {args.rollback_file.name}")
     trf = csv.writer(args.rollback_teamroles_file)
-    print("Backing up team roles to {}".format(args.rollback_teamroles_file.name))
+    print(f"Backing up team roles to {args.rollback_teamroles_file.name}")
 
     if not args.assume_yes:
         cont = input("Update user roles? (y/n) ")
@@ -434,13 +435,16 @@ def rerole_users(args):
 def set_base_role(user_id, new_base_role, prev_base_role):
     global session
     try:
-        print("Setting base role for user %s: %s (was %s)"%(user_id,
-            new_base_role, prev_base_role))
-        user = session.rput('users/'+user_id, json={"user":{"role": new_base_role}})
-        if user:
-            print("Successfully changed role for %s"%(user_id))
+        print(
+            f"Setting base role for user {user_id}: {new_base_role} (was {prev_base_role})"
+        )
+
+        if user := session.rput(
+            f'users/{user_id}', json={"user": {"role": new_base_role}}
+        ):
+            print(f"Successfully changed role for {user_id}")
     except pdpyras.PDClientError as e:
-        print("Failed to set role for user: "+user_id)
+        print(f"Failed to set role for user: {user_id}")
         handle_exception(e)
 
 def set_role_on_all_teams(user_id, new_team_role, teams):
@@ -455,8 +459,10 @@ def set_role_on_all_teams(user_id, new_team_role, teams):
     """
     global session
     for team in teams:
-        print("Setting role for user %s on team %s (%s) to %s"%(
-            user_id, team['summary'], team['id'], new_team_role))
+        print(
+            f"Setting role for user {user_id} on team {team['summary']} ({team['id']}) to {new_team_role}"
+        )
+
         yield (set_user_role_on_team(user_id, new_team_role, team['id']),
             team['summary'])
 
@@ -490,9 +496,11 @@ def set_user_role_on_team(user_id, new_team_role, team_id, add_to_teams=False):
             print("WARNING: user %s is not on team %s, so they are going to "
                 "be added. If you want to roll back changes, you will have to "
                 "remove them from this team manually."%(user_id, team_id))
-    print("Setting role of user %s on team %s to %s (was %s)"%(user_id, team_id,
-        new_team_role, prev_role))
-    request = session.put('teams/%s/users/%s'%(team_id, user_id), json=params)
+    print(
+        f"Setting role of user {user_id} on team {team_id} to {new_team_role} (was {prev_role})"
+    )
+
+    request = session.put(f'teams/{team_id}/users/{user_id}', json=params)
     if request.ok:
         print("Success")
     else:
@@ -533,10 +541,9 @@ def valid_role(role, team=False):
 
     if role in roles or role is None:
         return role
-    else:
-        msg = "WARNING: Ignoring invalid {rt} role \"{role}\"; {rt} roles "\
-            "must be one of the following: {roles}"
-        print(msg.format(rt=roletype, role=role, roles=', '.join(roles)))
+    msg = "WARNING: Ignoring invalid {rt} role \"{role}\"; {rt} roles "\
+        "must be one of the following: {roles}"
+    print(msg.format(rt=roletype, role=role, roles=', '.join(roles)))
 
 def main():
     global session

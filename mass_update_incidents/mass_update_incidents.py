@@ -24,7 +24,7 @@ def mass_update_incidents(args):
         default_from=args.requester_email)
     if args.user_id:
         PARAMETERS['user_ids[]'] = args.user_id.split(',')
-        print("Acting on incidents assigned to user(s): "+args.user_id)
+        print(f"Acting on incidents assigned to user(s): {args.user_id}")
     if args.service_id:
         PARAMETERS['service_ids[]'] = args.service_id.split(',')
         print("Acting on incidents corresponding to service ID(s): " +
@@ -46,12 +46,12 @@ def mass_update_incidents(args):
     else:
         PARAMETERS['date_range'] = 'all'
         print("Getting incidents of all time")
-    print("Parameters: "+str(PARAMETERS))
+    print(f"Parameters: {str(PARAMETERS)}")
     try:
         print("Please be patient as this can take a while for large volumes "
             "of incidents.")
         for incident in session.list_all('incidents', params=PARAMETERS):
-            print("* Incident {}: {}".format(incident['id'], args.action))
+            print(f"* Incident {incident['id']}: {args.action}")
             if args.dry_run:
                 continue
             session.rput(incident['self'], json={

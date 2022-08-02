@@ -16,7 +16,7 @@ def create_recurring_maintenance_windows(args):
     start_date = dateparser.parse(args.first_maint_window_date)
     end_date = dateparser.parse(args.first_maint_window_date) + \
         timedelta(minutes=args.duration_minutes)
-    for iter in range(1, args.num_repetitions, 1):
+    for _ in range(1, args.num_repetitions):
         start_date = start_date + timedelta(hours=args.period_hours)
         end_date = end_date + timedelta(hours=args.period_hours)
         print("Creating a %d-minute maintenance window starting %s."%(

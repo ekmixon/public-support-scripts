@@ -31,10 +31,9 @@ def main():
         schedules = [s['id'] for s in session.iter_all('schedules')]
 
     for sid in schedules:
-        for override in session.iter_all('/schedules/%s/overrides'%sid, 
-                params=window):
-            idtag = "%s: %s to %s"%(override['user']['summary'], 
-                override['start'], override['end'])
+        for override in session.iter_all(f'/schedules/{sid}/overrides', params=window):
+            idtag = f"{override['user']['summary']}: {override['start']} to {override['end']}"
+
             writer.writerow((sid, override['id'], idtag))
 
 if __name__ == '__main__':

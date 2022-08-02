@@ -10,13 +10,15 @@ def find_shifts(session, vacationing_user, start, end, schedule_ids):
     between `since` and `until`"""
     params = {"since": start, "until": end}
     shifts = {} # Looks like: {(start, end): schedule_id}
-    get_schedule = lambda sid: session.rget('/schedules/'+sid, params=params)
+    get_schedule = lambda sid: session.rget(f'/schedules/{sid}', params=params)
     schedules = [get_schedule(sid) for sid in schedule_ids]
     for schedule in schedules:
         for shift in schedule["final_schedule"]["rendered_schedule_entries"]:
             if shift["user"]["id"] == vacationing_user:
-                print("Found shift for vacationing user from %s to %s"%(
-                    shift["start"], shift["end"]))
+                print(
+                    f'Found shift for vacationing user from {shift["start"]} to {shift["end"]}'
+                )
+
                 shifts[(shift["start"], shift["end"])] = schedule
     return shifts
 
@@ -60,21 +62,27 @@ def create_overrides():
 
     for dates, schedule in shifts.items():
         start, end = dates
-        print("Creating override on schedule %s (%s) from %s to %s..."%(
-            schedule['id'], schedule['summary'], start, end))
-        create_response = session.post('/schedules/%s/overrides'%schedule['id'],
-            json={'override': {
-                "start": start,
-                "end": end,
-                "user": {
-                    "id": replacement_user['id'],
-                    "type": "user_reference" 
-                }
-            }}
+        print(
+            f"Creating override on schedule {schedule['id']} ({schedule['summary']}) from {start} to {end}..."
         )
+
+        create_response = session.post(
+            f"/schedules/{schedule['id']}/overrides",
+            json={
+                'override': {
+                    "start": start,
+                    "end": end,
+                    "user": {
+                        "id": replacement_user['id'],
+                        "type": "user_reference",
+                    },
+                }
+            },
+        )
+
         if not create_response.ok:
             message = "HTTP error: %d"%e.response.status_code
-            print("Error creating override; "+message)
+            print(f"Error creating override; {message}")
             continue
         print("Success.")
 

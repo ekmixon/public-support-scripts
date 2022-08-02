@@ -20,7 +20,7 @@ def remove_all_future_maintenance_windows(args):
         try:
             session.delete(mw['self'])
         except PDClientError as e:
-            message = "API Error: %s"%e
+            message = f"API Error: {e}"
             if e.response is not None:
                 message += " HTTP %d: %s"%(e.response.status_code,
                     e.response.text)

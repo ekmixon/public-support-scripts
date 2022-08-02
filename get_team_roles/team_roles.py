@@ -13,18 +13,21 @@ def get_teams(session, comma_separated):
 
 def get_team_members(team_id, team_name, session, comma_separated):
     try:
-        for member in session.iter_all('teams/{}/members'.format(team_id)):
+        for member in session.iter_all(f'teams/{team_id}/members'):
             if comma_separated:
-                sys.stdout.write("{}, {}, {}, {}, {}\n".format(team_id, team_name, member['user']['id'], member['user']['summary'], member['role']))
+                sys.stdout.write(
+                    f"{team_id}, {team_name}, {member['user']['id']}, {member['user']['summary']}, {member['role']}\n"
+                )
+
             else:
-                sys.stdout.write("Team ID: {}\n".format(team_id))
-                sys.stdout.write("Team Name: {}\n".format(team_name))
-                sys.stdout.write("User ID: {}\n".format(member['user']['id']))
-                sys.stdout.write("User name: {}\n".format(member['user']['summary']))
-                sys.stdout.write("Team role: {}\n".format(member['role']))
+                sys.stdout.write(f"Team ID: {team_id}\n")
+                sys.stdout.write(f"Team Name: {team_name}\n")
+                sys.stdout.write(f"User ID: {member['user']['id']}\n")
+                sys.stdout.write(f"User name: {member['user']['summary']}\n")
+                sys.stdout.write(f"Team role: {member['role']}\n")
                 sys.stdout.write("-----\n")
     except pdpyras.PDClientError as e:
-        print("Could not get team members for team {} {}".format(team_name, team_id))
+        print(f"Could not get team members for team {team_name} {team_id}")
         raise e
 
 

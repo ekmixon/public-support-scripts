@@ -13,7 +13,7 @@ import time
 import pdpyras
 
 def ascii_keys(data):
-    return dict((k.encode('ascii'), v) for (k, v) in data.items())
+    return {k.encode('ascii'): v for (k, v) in data.items()}
 
 def print_progress(result, i, n):
     new_percent = int(100.*i/n)
@@ -101,56 +101,54 @@ def main():
             'email':0, 'phone':0, 'sms':0, 'push':0, 'total':0
         })
         team_file = '%s_%d.csv'%(team, now_s)
-        csvf = open(team_file, 'w')
-        notifsw = csv.writer(csvf)
-        for index in reversed(ile_indices):
-            ile = notifs[index]
-            channel = ile['channel']
-            if 'notification' in channel and 'user' in ile:
-                notification = channel['notification']
-                notif_type = None
-                if 'push' in notification['type']:
-                    notif_type = 'push'
-                elif notification['type'] in stats[team]:
-                    notif_type = notification['type']
-                else:
-                    logging.error("Invalid/unrecognized notification channel \
+        with open(team_file, 'w') as csvf:
+            notifsw = csv.writer(csvf)
+            for index in reversed(ile_indices):
+                ile = notifs[index]
+                channel = ile['channel']
+                if 'notification' in channel and 'user' in ile:
+                    notification = channel['notification']
+                    notif_type = None
+                    if 'push' in notification['type']:
+                        notif_type = 'push'
+                    elif notification['type'] in stats[team]:
+                        notif_type = notification['type']
+                    else:
+                        logging.error("Invalid/unrecognized notification channel \
                         type: %s", notification['type'])
-                if notif_type:
-                    stats[team][notif_type] += 1
-                    stats[team]['total'] += 1
-                    
-                    print( 
-                        ile['created_at'],
-                        notif_type,
-                        notification['address'],
-                        ile['user']['summary']
-                    )
+                    if notif_type:
+                        stats[team][notif_type] += 1
+                        stats[team]['total'] += 1
 
-                    notifsw.writerow([
-                        ile['created_at'].encode('ascii', 'ignore'),
-                        notif_type.encode('ascii', 'ignore'),
-                        notification['address'].encode('ascii', 'ignore'),
-                        ile['user']['summary'].encode('ascii', 'ignore')
-                    ])
-                logging.debug("Added notification log entry: %s",
-                    str(ile))
-            else:
-                logging.warn("Notification log entry contains no notification "\
-                 " or user! %s", json.dumps(ile, indent=4))
-        csvf.close()
+                        print( 
+                            ile['created_at'],
+                            notif_type,
+                            notification['address'],
+                            ile['user']['summary']
+                        )
+
+                        notifsw.writerow([
+                            ile['created_at'].encode('ascii', 'ignore'),
+                            notif_type.encode('ascii', 'ignore'),
+                            notification['address'].encode('ascii', 'ignore'),
+                            ile['user']['summary'].encode('ascii', 'ignore')
+                        ])
+                    logging.debug("Added notification log entry: %s",
+                        str(ile))
+                else:
+                    logging.warn("Notification log entry contains no notification "\
+                     " or user! %s", json.dumps(ile, indent=4))
         logging.info("Wrote list of notifications for team to %s", team_file)
 
     stats_file = 'notif_totals_%d.csv'%now_s
-    csvf = open(stats_file, 'w')
-    statsw = csv.DictWriter(
-        csvf, 
-        ['team', 'email', 'sms', 'phone', 'push', 'total']
-    )
-    for (team, team_stats) in stats.items():
-        team_stats['team'] = team
-        statsw.writerow(team_stats)
-    csvf.close()
+    with open(stats_file, 'w') as csvf:
+        statsw = csv.DictWriter(
+            csvf, 
+            ['team', 'email', 'sms', 'phone', 'push', 'total']
+        )
+        for (team, team_stats) in stats.items():
+            team_stats['team'] = team
+            statsw.writerow(team_stats)
     if len(stats.values()):
         logging.info("Wrote stats to %s", stats_file)
     else:

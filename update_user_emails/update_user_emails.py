@@ -19,11 +19,11 @@ def apply_replacement_logic(args, email):
         find = args.query
         regex_replace = False
     repl = args.replacement_pattern
-    if regex_replace:
-        to_email = re.sub(find, repl, email)
-    else:
-        to_email = email.replace(find, repl)
-    return to_email
+    return (
+        re.sub(find, repl, email)
+        if regex_replace
+        else email.replace(find, repl)
+    )
 
 def update_email(user, new_email):
     """
@@ -79,7 +79,7 @@ def get_user_email_changes(args):
                 'include[]': ['contact_methods']
             })
             if not user:
-                print("No user found with matching email: "+from_email)
+                print(f"No user found with matching email: {from_email}")
                 continue
             yield (user, to_email)
     else:
@@ -91,7 +91,7 @@ def get_user_email_changes(args):
             kw.setdefault('params', {})
             kw['params']['query'] = args.query
         for user in session.iter_all('users', **kw):
-            if args.query and not args.query in user['email']:
+            if args.query and args.query not in user['email']:
                 # Email doesn't match but maybe some of their name did
                 continue
             to_email = apply_replacement_logic(args, user['email'])
@@ -100,7 +100,7 @@ def get_user_email_changes(args):
 def replace_emails(args):
     global session
     for (user, new_email) in get_user_email_changes(args):
-        print("User ID=%s (%s):"%(user['id'], user['summary']))
+        print(f"User ID={user['id']} ({user['summary']}):")
         if user['email'] != new_email:
             print("\tUpdating email: %s -> %s"%(user['email'], new_email))
             if not args.dry_run:

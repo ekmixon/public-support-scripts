@@ -89,7 +89,7 @@ def input_yn(message):
         @param message: question requiring y/n answer from user
     Returns: Boolean value of the user's answer
     """
-    response = input(message + " (y/n): ").strip().lower()
+    response = input(f"{message} (y/n): ").strip().lower()
     valid_responses = ('n', 'y')
     if response and response[0] in valid_responses:
         return bool(valid_responses.index(response))
@@ -107,10 +107,7 @@ class DeleteUser(APISession):
         super(DeleteUser, self).__init__(access_token, default_from=from_email)
         self.email = email
         self.backup = backup
-        # Memoize user and set user_id property for convenience
-        self.user_id = False
-        if self.user is not None:
-            self.user_id = self.user['id']
+        self.user_id = self.user['id'] if self.user is not None else False
 
     def backup_object(self, url, modification):
         """
@@ -135,9 +132,8 @@ class DeleteUser(APISession):
             obj = self.rget(url)
             filename = '%s-%s-%s-%d.json' % (modification, obj['type'], obj['id'],
                                              now)
-            fh = open(os.path.join('backup', filename), 'w')
-            json.dump(obj, fh)
-            fh.close()
+            with open(os.path.join('backup', filename), 'w') as fh:
+                json.dump(obj, fh)
 
     def delete(self, url, **kw):
         """
@@ -149,7 +145,7 @@ class DeleteUser(APISession):
 
     def delete_user(self):
         """Delete user from PagerDuty"""
-        r = self.delete('users/' + self.user_id)
+        r = self.delete(f'users/{self.user_id}')
         return r.ok
 
     def list_open_incidents(self, additional_params=None):
@@ -168,7 +164,7 @@ class DeleteUser(APISession):
             'date_range': 'all'
         }
         if additional_params:
-            default_params.update(additional_params)
+            default_params |= additional_params
         return self.list_all('incidents', params=default_params)
 
     def resolve_incidents(self, incidents):
@@ -196,10 +192,9 @@ class DeleteUser(APISession):
 
     def schedule_has_user(self, schedule):
         """Check if a schedule contains a particular user"""
-        for user in schedule.get('users', []):
-            if user.get('id') == self.user_id:
-                return True
-        return False
+        return any(
+            user.get('id') == self.user_id for user in schedule.get('users', [])
+        )
 
     def remove_from_escalation_policy(self, escalation_policy, obj=None):
         """
@@ -214,14 +209,14 @@ class DeleteUser(APISession):
             obj = self.user
         obj_type = obj['type'].replace('_reference', '')
         new_rules = []
-        for i, rule in enumerate(escalation_policy['escalation_rules']):
-            new_targets = []
-            for j, target in enumerate(rule['targets']):
-                # Remove the target because it's being deleted
-                if target['id'] == obj['id'] and \
-                        target['type'].startswith(obj_type):
-                    continue
-                new_targets.append(target)
+        for rule in escalation_policy['escalation_rules']:
+            new_targets = [
+                target
+                for target in rule['targets']
+                if target['id'] != obj['id']
+                or not target['type'].startswith(obj_type)
+            ]
+
             # Remove the rule because it has no targets
             if not len(new_targets):
                 continue
@@ -241,12 +236,7 @@ class DeleteUser(APISession):
         not_empty = False
         for layer in schedule['schedule_layers']:
             # Get index of user in layer
-            new_users = []
-            for u in layer['users']:
-                # Remove the user
-                if u['user']['id'] == self.user_id:
-                    continue
-                new_users.append(u)
+            new_users = [u for u in layer['users'] if u['user']['id'] != self.user_id]
             # If this is the only user on the layer, end the layer now
             if not len(new_users):
                 layer['end'] = datetime.now().isoformat()
@@ -270,10 +260,7 @@ class DeleteUser(APISession):
 
     def team_has_user(self, team_users):
         """Check the users on a team for the deletion user"""
-        for user in team_users:
-            if user['id'] == self.user_id:
-                return True
-        return False
+        return any(user['id'] == self.user_id for user in team_users)
 
     def put(self, url, **kw):
         """
@@ -319,11 +306,11 @@ def delete_user(access_token, user_email, from_email, prompt_del, auto_resolve, 
     incidents = user_deleter.list_open_incidents()
     n_incidents = len(incidents)
     if n_incidents > 0:
-        # Determine if we want to auto-resolve them
-        autores = auto_resolve or input_yn("There are currently %d open "
-                                           "incidents that this user is assigned. Do you want to auto-resolve "
-                                           "them?" % n_incidents)
-        if autores:
+        if autores := auto_resolve or input_yn(
+            "There are currently %d open "
+            "incidents that this user is assigned. Do you want to auto-resolve "
+            "them?" % n_incidents
+        ):
             log.info('Resolving all open incidents...')
             user_deleter.resolve_incidents(incidents)
             log.info('Successfully resolved all open incidents')
@@ -349,13 +336,13 @@ def delete_user(access_token, user_email, from_email, prompt_del, auto_resolve, 
         user_deleter.remove_from_escalation_policy(ep)
         # Update the escalation policy. If it's empty, ask if the user wants to
         # delete the escalation policy
-        if len(ep['escalation_rules']) != 0 or (
-                prompt_del and not input_yn(
-            "Escalation policy ID=%s, name=%s will be empty. Delete?" % (
-                    ep['id'],
-                    ep['name']
+        if (
+            len(ep['escalation_rules']) != 0
+            or prompt_del
+            and not input_yn(
+                f"Escalation policy ID={ep['id']}, name={ep['name']} will be empty. Delete?"
             )
-        )):
+        ):
             # Update the escalation policy
             try:
                 # Delete description in case it is null
@@ -441,11 +428,17 @@ def delete_user(access_token, user_email, from_email, prompt_del, auto_resolve, 
     for resource in ('schedules', 'escalation_policies', 'teams'):
         label = resource.capitalize().replace('_', ' ')
         suffix = '/users/{id}' if resource == 'teams' else ''
-        log.info('%s affected: %d', label, sum([
-            user_deleter.api_call_counts.get(
-                '%s:%s/{id}%s' % (method, resource, suffix), 0
-            ) for method in ('put', 'delete')
-        ]))
+        log.info(
+            '%s affected: %d',
+            label,
+            sum(
+                user_deleter.api_call_counts.get(
+                    '%s:%s/{id}%s' % (method, resource, suffix), 0
+                )
+                for method in ('put', 'delete')
+            ),
+        )
+
     if user_deleter.delete_user():
         log.info('User %s has been successfully removed!', user_email)
         return 1
@@ -459,7 +452,7 @@ def setup_logging(is_log_verbose):
     logdir = os.path.join(os.getcwd(), 'logs')
     if not os.path.isdir(os.path.join(os.getcwd(), './logs')):
         os.mkdir(logdir)
-    logfile = os.path.join(logdir, '%s.log' % datetime.now().isoformat())
+    logfile = os.path.join(logdir, f'{datetime.now().isoformat()}.log')
     file_formatter = logging.Formatter(
         fmt=u"[%(asctime)s] %(levelname)s: %(message)s",
         datefmt=u"%Y-%m-%dT%H:%M:%S"
@@ -480,25 +473,30 @@ def main(arguments):
 
     email_list = []
     with open(arguments.user_csv) as file:
-        for (i, row) in enumerate(csv.reader(file)):
-            email = row[0].strip()
-            # Skip blank emails 
-            if not email:
-                continue
-            email_list.append(email)
+        for row in csv.reader(file):
+            if email := row[0].strip():
+                email_list.append(email)
 
-    print("{} users to be deleted".format(len(email_list)))
+    print(f"{len(email_list)} users to be deleted")
 
     # Initialize logging:
     setup_logging(arguments.verbose)
 
     # Do the deed:
-    count = 0
-    for email in email_list:
-        if arguments.prompt_del and not input_yn("Proceed with deletion of user (%s)" % email):
-            continue
-        count += delete_user(arguments.access_token, email, arguments.from_email,
-                             arguments.prompt_del, arguments.auto_resolve, arguments.backup, resources)
+    count = sum(
+        delete_user(
+            arguments.access_token,
+            email,
+            arguments.from_email,
+            arguments.prompt_del,
+            arguments.auto_resolve,
+            arguments.backup,
+            resources,
+        )
+        for email in email_list
+        if not arguments.prompt_del
+        or input_yn(f"Proceed with deletion of user ({email})")
+    )
 
     log.info("%d user(s) out of %d specified have been deleted." % (
         count, len(email_list)
